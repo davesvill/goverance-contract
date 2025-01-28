@@ -146,3 +146,18 @@
     (map-delete active-proposals { proposal-id: proposal-id })
     (ok true)))
 
+;; Read-only function to check if an address is a member
+(define-read-only (is-member (address principal))
+  (is-some (map-get? members address)))
+
+;; Read-only function to get the required number of approvals
+(define-read-only (get-required-approvals)
+  (ok (var-get required-approvals)))
+
+;; Function to update the required number of approvals (only callable by governor)
+(define-public (update-required-approvals (new-required uint))
+  (begin
+    (asserts! (is-eq tx-sender (var-get governor)) (err u401))
+    (asserts! (> new-required u0) (err u403))
+    (var-set required-approvals new-required)
+    (ok true)))
