@@ -1,17 +1,13 @@
 ;; Governance contract for decentralized grant distribution
 
-;; =========================================
-;; Data variables
-;; =========================================
 
+;; Data variables
 (define-data-var governor principal tx-sender)      ;; Governor who manages the system
 (define-data-var base-threshold uint u10)           ;; Base threshold for contributions
 (define-data-var max-grant-size uint u1000)         ;; Maximum grant size per beneficiary
 
-;; =========================================
-;; CORE FUNCTIONS
-;; =========================================
 
+;; CORE FUNCTIONS
 ;; Function to set a new governor (only callable by the current governor)
 (define-public (update-governor (new-governor principal))
   (let ((current-governor (var-get governor)))
@@ -71,10 +67,8 @@
   (ok (var-get max-grant-size))
 )
 
-;; =========================================
-;; VALIDATION FUNCTIONS
-;; =========================================
 
+;; VALIDATION FUNCTIONS
 ;; Function to validate if a contribution meets the base threshold
 (define-public (validate-contribution (amount uint))
   (if (>= amount (var-get base-threshold))
@@ -111,4 +105,44 @@
     (asserts! (is-eq tx-sender (var-get governor)) (err u401))
     (asserts! (is-none (map-get? members new-member)) (err u403))
     (ok (map-set members new-member true))))
+
+;; Function to remove a member
+(define-public (remove-member (member principal))
+  (begin
+    (asserts! (is-eq tx-sender (var-get governor)) (err u401))
+    (asserts! (is-some (map-get? members member)) (err u404))
+    (ok (map-delete members member))))
+
+;; Function to submit a new proposal
+(define-public (submit-proposal (proposal-type (string-ascii 50)) (parameters (list 10 int)))
+  (let 
+    (
+      (proposal-id (var-get proposal-counter))
+      (type-length (len proposal-type))
+    )
+    (asserts! (is-some (map-get? members tx-sender)) (err u401))
+    (asserts! (and (> type-length u0) (<= type-length u50)) (err u402))
+    (asserts! (<= (len parameters) u10) (err u403))
+    (asserts! (< proposal-id (- (pow u2 u128) u1)) (err u404))  ;; Check for potential overflow
+    (map-set active-proposals
+      { proposal-id: proposal-id }
+      { proposal-type: proposal-type, parameters: parameters, endorsements: (list tx-sender) })
+    (var-set proposal-counter (+ proposal-id u1))
+    (ok proposal-id)))
+
+;; Function to get proposal details
+(define-read-only (get-proposal (proposal-id uint))
+  (map-get? active-proposals { proposal-id: proposal-id }))
+
+;; Function to get the current proposal counter
+(define-read-only (get-proposal-counter)
+  (ok (var-get proposal-counter)))
+
+;; Private function to execute a proposal
+(define-private (execute-proposal (proposal-id uint))
+  (let ((proposal (unwrap! (map-get? active-proposals { proposal-id: proposal-id }) (err u404))))
+    ;; Implementation of execute-proposal would go here
+    ;; This would involve pattern matching on the proposal-type and calling the appropriate function
+    (map-delete active-proposals { proposal-id: proposal-id })
+    (ok true)))
 
